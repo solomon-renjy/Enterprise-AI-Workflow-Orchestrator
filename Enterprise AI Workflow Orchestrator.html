@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Enterprise AI Workflow Orchestrator</title>
+
+<style>
+:root {
+  --brand: #6366f1;
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --border: #e5e7eb;
+  --success: #16a34a;
+  --error: #dc2626;
+  --running: #3b82f6;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+button {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s ease;
+}
+
+button.primary {
+  background: var(--brand);
+  color: white;
+}
+
+button.primary:hover {
+  opacity: 0.9;
+}
+
+button.secondary {
+  background: #e5e7eb;
+}
+
+button.secondary:hover {
+  background: #d1d5db;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.canvas {
+  flex: 1;
+  position: relative;
+  border-right: 1px solid var(--border);
+  background: #f9fafb;
+}
+
+.node {
+  position: absolute;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: grab;
+  transition: 0.3s ease;
+  user-select: none;
+}
+
+.node.idle { background: #e5e7eb; }
+.node.running { background: var(--running); color: white; }
+.node.success { background: var(--success); color: white; }
+.node.error { background: var(--error); color: white; }
+
+.logs {
+  width: 320px;
+  background: black;
+  color: #22c55e;
+  padding: 16px;
+  font-size: 12px;
+  font-family: monospace;
+  overflow-y: auto;
+}
+
+.log-entry {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+  .logs {
+    display: none;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button class="primary" id="runBtn">Run Workflow</button>
+  <button class="secondary" id="stopBtn">Stop</button>
+</div>
+
+<div class="main">
+  <div class="canvas" id="canvas"></div>
+  <div class="logs" id="logs"></div>
+</div>
+
+<script>
+const canvas = document.getElementById("canvas")
+const logsContainer = document.getElementById("logs")
+const runBtn = document.getElementById("runBtn")
+const stopBtn = document.getElementById("stopBtn")
+
+let interval = null
+
+const nodes = [
+  { id: "1", name: "Ingest Data", x: 100, y: 100, status: "idle" },
+  { id: "2", name: "Process AI", x: 350, y: 200, status: "idle" },
+  { id: "3", name: "Store Output", x: 600, y: 120, status: "idle" }
+]
+
+function createNode(node) {
+  const div = document.createElement("div")
+  div.className = `node ${node.status}`
+  div.textContent = node.name
+  div.style.left = node.x + "px"
+  div.style.top = node.y + "px"
+  div.setAttribute("data-id", node.id)
+
+  makeDraggable(div)
+
+  canvas.appendChild(div)
+}
+
+function renderNodes() {
+  canvas.innerHTML = ""
+  nodes.forEach(createNode)
+}
+
+function updateNodeStatus(id, status) {
+  const node = nodes.find(n => n.id === id)
+  node.status = status
+
+  const el = document.querySelector(`[data-id='${id}']`)
+  el.className = `node ${status}`
+}
+
+function log(message) {
+  const div = document.createElement("div")
+  div.className = "log-entry"
+  div.textContent = message
+  logsContainer.appendChild(div)
+  logsContainer.scrollTop = logsContainer.scrollHeight
+}
+
+function runWorkflow() {
+  log("Starting workflow...")
+  let step = 0
+
+  interval = setInterval(() => {
+    if (step < nodes.length) {
+      updateNodeStatus(nodes[step].id, "running")
+      log(`${nodes[step].name} running...`)
+
+      setTimeout(() => {
+        updateNodeStatus(nodes[step].id, "success")
+        log(`${nodes[step].name} completed.`)
+      }, 1000)
+
+      step++
+    } else {
+      clearInterval(interval)
+      log("Workflow complete.")
+    }
+  }, 2000)
+}
+
+function stopWorkflow() {
+  clearInterval(interval)
+  nodes.forEach(n => updateNodeStatus(n.id, "idle"))
+  log("Workflow stopped.")
+}
+
+function makeDraggable(element) {
+  let offsetX = 0
+  let offsetY = 0
+  let isDragging = false
+
+  element.addEventListener("mousedown", (e) => {
+    isDragging = true
+    offsetX = e.clientX - element.offsetLeft
+    offsetY = e.clientY - element.offsetTop
+    element.style.cursor = "grabbing"
+  })
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isDragging) return
+    element.style.left = e.clientX - offsetX + "px"
+    element.style.top = e.clientY - offsetY + "px"
+  })
+
+  document.addEventListener("mouseup", () => {
+    isDragging = false
+    element.style.cursor = "grab"
+  })
+}
+
+runBtn.addEventListener("click", runWorkflow)
+stopBtn.addEventListener("click", stopWorkflow)
+
+renderNodes()
+</script>
+
+</body>
+</html>
