@@ -3,232 +3,352 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Enterprise AI Workflow Orchestrator - Scalable drag and drop workflow builder." />
 <title>Enterprise AI Workflow Orchestrator</title>
 
 <style>
 :root {
-  --brand: #6366f1;
-  --bg: #f8fafc;
-  --panel: #ffffff;
+  --primary: #111827;
+  --accent: #2563eb;
+  --bg: #f3f4f6;
   --border: #e5e7eb;
-  --success: #16a34a;
-  --error: #dc2626;
-  --running: #3b82f6;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: system-ui, -apple-system, sans-serif;
 }
 
 body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
   background: var(--bg);
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
+  color: var(--primary);
 }
 
-.toolbar {
-  display: flex;
-  gap: 12px;
-  padding: 16px;
-  background: var(--panel);
+header, footer {
+  background: white;
   border-bottom: 1px solid var(--border);
+  padding: 1rem 2rem;
 }
 
-button {
-  padding: 10px 18px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-  transition: 0.2s ease;
+footer {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  text-align: center;
 }
 
-button.primary {
-  background: var(--brand);
-  color: white;
+h1, h2 {
+  margin: 0 0 1rem 0;
 }
 
-button.primary:hover {
-  opacity: 0.9;
+main {
+  padding: 2rem;
 }
 
-button.secondary {
-  background: #e5e7eb;
-}
-
-button.secondary:hover {
-  background: #d1d5db;
-}
-
-.main {
-  flex: 1;
+.builder {
   display: flex;
-  overflow: hidden;
+  height: 600px;
+  background: white;
+  border: 1px solid var(--border);
+}
+
+.sidebar {
+  width: 250px;
+  border-right: 1px solid var(--border);
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.sidebar button {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.sidebar button:hover {
+  background: var(--accent);
+  color: white;
 }
 
 .canvas {
   flex: 1;
   position: relative;
-  border-right: 1px solid var(--border);
-  background: #f9fafb;
+  overflow: hidden;
+  background: #fafafa;
 }
 
 .node {
   position: absolute;
-  padding: 14px 18px;
-  border-radius: 12px;
-  font-weight: 600;
+  width: 150px;
+  padding: 10px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   cursor: grab;
-  transition: 0.3s ease;
   user-select: none;
 }
 
-.node.idle { background: #e5e7eb; }
-.node.running { background: var(--running); color: white; }
-.node.success { background: var(--success); color: white; }
-.node.error { background: var(--error); color: white; }
-
-.logs {
-  width: 320px;
-  background: black;
-  color: #22c55e;
-  padding: 16px;
-  font-size: 12px;
-  font-family: monospace;
-  overflow-y: auto;
+.node strong {
+  display: block;
+  margin-bottom: 5px;
 }
 
-.log-entry {
-  margin-bottom: 6px;
+.controls {
+  margin-top: 1rem;
 }
 
-@media (max-width: 768px) {
-  .logs {
-    display: none;
-  }
+.controls button {
+  margin-right: 0.5rem;
+  padding: 0.5rem 1rem;
 }
 </style>
 </head>
+
 <body>
 
-<div class="toolbar">
-  <button class="primary" id="runBtn">Run Workflow</button>
-  <button class="secondary" id="stopBtn">Stop</button>
-</div>
+<header role="banner">
+  <h1>Enterprise AI Workflow Orchestrator</h1>
+</header>
 
-<div class="main">
-  <div class="canvas" id="canvas"></div>
-  <div class="logs" id="logs"></div>
-</div>
+<main>
+
+<section aria-labelledby="builder-title">
+  <h2 id="builder-title">Workflow Builder</h2>
+
+  <div class="builder">
+
+    <aside class="sidebar" aria-label="Node Library">
+      <h3>Node Library</h3>
+      <div id="nodeLibrary"></div>
+    </aside>
+
+    <div class="canvas"
+         id="canvas"
+         role="region"
+         aria-label="Workflow Canvas"
+         tabindex="0">
+    </div>
+
+  </div>
+
+  <div class="controls">
+    <button onclick="executeWorkflow()">Execute Workflow</button>
+    <button onclick="saveWorkflow()">Save</button>
+    <button onclick="loadWorkflow()">Load</button>
+    <button onclick="clearWorkflow()">Clear</button>
+  </div>
+
+</section>
+
+</main>
+
+<footer role="contentinfo">
+  © 2026 Enterprise AI Workflow Orchestrator
+</footer>
 
 <script>
-const canvas = document.getElementById("canvas")
-const logsContainer = document.getElementById("logs")
-const runBtn = document.getElementById("runBtn")
-const stopBtn = document.getElementById("stopBtn")
+/* ==============================
+   SIMPLE ZUSTAND-LIKE STORE
+================================= */
 
-let interval = null
+function createStore(initialState) {
+  let state = initialState;
+  const listeners = new Set();
 
-const nodes = [
-  { id: "1", name: "Ingest Data", x: 100, y: 100, status: "idle" },
-  { id: "2", name: "Process AI", x: 350, y: 200, status: "idle" },
-  { id: "3", name: "Store Output", x: 600, y: 120, status: "idle" }
-]
+  const setState = (partial) => {
+    state = { ...state, ...partial };
+    listeners.forEach((l) => l(state));
+  };
 
-function createNode(node) {
-  const div = document.createElement("div")
-  div.className = `node ${node.status}`
-  div.textContent = node.name
-  div.style.left = node.x + "px"
-  div.style.top = node.y + "px"
-  div.setAttribute("data-id", node.id)
+  const getState = () => state;
 
-  makeDraggable(div)
+  const subscribe = (listener) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  };
 
-  canvas.appendChild(div)
+  return { setState, getState, subscribe };
 }
 
-function renderNodes() {
-  canvas.innerHTML = ""
-  nodes.forEach(createNode)
+const store = createStore({
+  nodes: []
+});
+
+/* ==============================
+   PLUGIN SYSTEM
+================================= */
+
+class PluginRegistry {
+  constructor() {
+    this.plugins = new Map();
+  }
+
+  register(plugin) {
+    this.plugins.set(plugin.type, plugin);
+  }
+
+  get(type) {
+    return this.plugins.get(type);
+  }
+
+  list() {
+    return Array.from(this.plugins.values());
+  }
 }
 
-function updateNodeStatus(id, status) {
-  const node = nodes.find(n => n.id === id)
-  node.status = status
+const registry = new PluginRegistry();
 
-  const el = document.querySelector(`[data-id='${id}']`)
-  el.className = `node ${status}`
+/* ==============================
+   SAMPLE NODE TYPES (Extendable)
+================================= */
+
+registry.register({
+  type: "input",
+  label: "Input Node",
+  execute: () => ({ output: "User Input" })
+});
+
+registry.register({
+  type: "ai",
+  label: "AI Model Node",
+  execute: (input) => ({ output: "AI Processed: " + input })
+});
+
+registry.register({
+  type: "output",
+  label: "Output Node",
+  execute: (input) => ({ output: "Final Output: " + input })
+});
+
+/* ==============================
+   RENDER NODE LIBRARY
+================================= */
+
+const library = document.getElementById("nodeLibrary");
+
+registry.list().forEach(plugin => {
+  const btn = document.createElement("button");
+  btn.textContent = plugin.label;
+  btn.onclick = () => addNode(plugin.type);
+  library.appendChild(btn);
+});
+
+/* ==============================
+   ADD NODE
+================================= */
+
+const canvas = document.getElementById("canvas");
+
+function addNode(type) {
+  const id = crypto.randomUUID();
+  const node = { id, type, x: 50, y: 50 };
+
+  store.setState({
+    nodes: [...store.getState().nodes, node]
+  });
+
+  renderNode(node);
 }
 
-function log(message) {
-  const div = document.createElement("div")
-  div.className = "log-entry"
-  div.textContent = message
-  logsContainer.appendChild(div)
-  logsContainer.scrollTop = logsContainer.scrollHeight
+/* ==============================
+   RENDER NODE
+================================= */
+
+function renderNode(node) {
+  const div = document.createElement("div");
+  div.className = "node";
+  div.style.left = node.x + "px";
+  div.style.top = node.y + "px";
+  div.dataset.id = node.id;
+
+  div.innerHTML = `<strong>${node.type.toUpperCase()}</strong>ID: ${node.id.slice(0,5)}`;
+
+  enableDrag(div);
+  canvas.appendChild(div);
 }
 
-function runWorkflow() {
-  log("Starting workflow...")
-  let step = 0
+/* ==============================
+   DRAG & DROP SYSTEM
+================================= */
 
-  interval = setInterval(() => {
-    if (step < nodes.length) {
-      updateNodeStatus(nodes[step].id, "running")
-      log(`${nodes[step].name} running...`)
+function enableDrag(element) {
+  let offsetX, offsetY, isDragging = false;
 
-      setTimeout(() => {
-        updateNodeStatus(nodes[step].id, "success")
-        log(`${nodes[step].name} completed.`)
-      }, 1000)
+  element.addEventListener("pointerdown", (e) => {
+    isDragging = true;
+    offsetX = e.offsetX;
+    offsetY = e.offsetY;
+    element.setPointerCapture(e.pointerId);
+  });
 
-      step++
-    } else {
-      clearInterval(interval)
-      log("Workflow complete.")
+  element.addEventListener("pointermove", (e) => {
+    if (!isDragging) return;
+
+    const x = e.clientX - canvas.getBoundingClientRect().left - offsetX;
+    const y = e.clientY - canvas.getBoundingClientRect().top - offsetY;
+
+    element.style.left = x + "px";
+    element.style.top = y + "px";
+
+    updateNodePosition(element.dataset.id, x, y);
+  });
+
+  element.addEventListener("pointerup", () => {
+    isDragging = false;
+  });
+}
+
+function updateNodePosition(id, x, y) {
+  const nodes = store.getState().nodes.map(n =>
+    n.id === id ? { ...n, x, y } : n
+  );
+  store.setState({ nodes });
+}
+
+/* ==============================
+   WORKFLOW EXECUTION
+================================= */
+
+function executeWorkflow() {
+  const nodes = store.getState().nodes;
+
+  let result = "Start";
+
+  nodes.forEach(node => {
+    const plugin = registry.get(node.type);
+    if (plugin) {
+      result = plugin.execute(result).output;
     }
-  }, 2000)
+  });
+
+  alert("Workflow Result:\n\n" + result);
 }
 
-function stopWorkflow() {
-  clearInterval(interval)
-  nodes.forEach(n => updateNodeStatus(n.id, "idle"))
-  log("Workflow stopped.")
+/* ==============================
+   SERIALIZATION
+================================= */
+
+function saveWorkflow() {
+  const data = JSON.stringify(store.getState());
+  localStorage.setItem("workflow", data);
+  alert("Workflow Saved");
 }
 
-function makeDraggable(element) {
-  let offsetX = 0
-  let offsetY = 0
-  let isDragging = false
+function loadWorkflow() {
+  const data = localStorage.getItem("workflow");
+  if (!data) return alert("No saved workflow");
 
-  element.addEventListener("mousedown", (e) => {
-    isDragging = true
-    offsetX = e.clientX - element.offsetLeft
-    offsetY = e.clientY - element.offsetTop
-    element.style.cursor = "grabbing"
-  })
+  clearWorkflow();
+  const parsed = JSON.parse(data);
+  store.setState(parsed);
 
-  document.addEventListener("mousemove", (e) => {
-    if (!isDragging) return
-    element.style.left = e.clientX - offsetX + "px"
-    element.style.top = e.clientY - offsetY + "px"
-  })
-
-  document.addEventListener("mouseup", () => {
-    isDragging = false
-    element.style.cursor = "grab"
-  })
+  parsed.nodes.forEach(renderNode);
 }
 
-runBtn.addEventListener("click", runWorkflow)
-stopBtn.addEventListener("click", stopWorkflow)
+function clearWorkflow() {
+  store.setState({ nodes: [] });
+  canvas.innerHTML = "";
+}
 
-renderNodes()
 </script>
 
 </body>
